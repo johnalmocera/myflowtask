@@ -6,7 +6,8 @@ import {
   getDocs,
   deleteDoc,
   doc,
-  updateDoc
+  updateDoc,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -52,6 +53,7 @@ let tasks = [];
 let groups = [];
 let collapsedGroups = new Set();
 let pendingGroupDelete = null;
+let hasInitialized = false;
 
 searchInput.addEventListener("input", render);
 filterStatus.addEventListener("change", render);
@@ -366,6 +368,8 @@ async function init() {
 
   await syncGroupsWithTasks();
   render();
+  hasInitialized = true;
+  subscribeToLiveUpdates();
 }
 
 async function loadTasks() {
@@ -596,6 +600,35 @@ async function syncGroupsWithTasks() {
   );
 
   groups = [...groups, ...createdGroups];
+}
+
+function subscribeToLiveUpdates() {
+  onSnapshot(TASKS_REF, (snapshot) => {
+    tasks = snapshot.docs.map((taskDoc) => ({
+      id: taskDoc.id,
+      ...taskDoc.data()
+    }));
+
+    if (hasInitialized) {
+      render();
+    }
+  });
+
+  onSnapshot(GROUPS_REF, async (snapshot) => {
+    groups = snapshot.docs.map((groupDoc) => ({
+      id: groupDoc.id,
+      ...groupDoc.data()
+    }));
+
+    if (groups.length === 0 && hasInitialized) {
+      return;
+    }
+
+    if (hasInitialized) {
+      await syncGroupsWithTasks();
+      render();
+    }
+  });
 }
 
 function closeConfirmModal() {
